@@ -11,9 +11,14 @@ pipeline {
             }
         }
         */
-        stage('Build') {
+        stage('Test') {
             steps {
-                sh 'mvn clean package -DskipTests -B -ntp'
+                sh 'mvn clean test -B -ntp'
+            }
+        }
+        stage('Package') {
+            steps {
+                sh 'mvn package -B -ntp'
             }
         }
     }
