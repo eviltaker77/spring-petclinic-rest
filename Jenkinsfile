@@ -15,6 +15,12 @@ pipeline {
             steps {
                 sh 'mvn clean test -B -ntp'
             }
+            post {
+                success {
+                    junit 'target/surefire-reports/*.xml'
+                    jacoco (execPattern: 'target/jacoco.exec')
+                }
+            }
         }
         stage('Package') {
             steps {
