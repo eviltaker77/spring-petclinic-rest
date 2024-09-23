@@ -18,7 +18,7 @@ pipeline {
         }
         stage('Package') {
             steps {
-                sh 'mvn package -DskipTests -B -ntp'
+                sh 'mvn clean package -DskipTests -B -ntp'
             }
         }
     }
