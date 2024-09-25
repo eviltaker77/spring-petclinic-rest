@@ -1,0 +1,67 @@
+---
+- hosts: localhost
+  become: true
+  remote_user: ubuntu
+  tasks:
+    - name: Install Docker
+      block:
+        - name: Update apt and install required packages
+          apt:
+            name:
+              - ca-certificates
+              - curl
+            update_cache: yes
+            state: present
+
+        - name: Create directory for apt keyrings
+          file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: "0755"
+
+        - name: Download Docker GPG key
+          get_url:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            dest: /etc/apt/keyrings/docker.asc
+            mode: "0644"                    
+
+        - name: Get the system architecture
+          command:
+            cmd: dpkg --print-architecture
+          register: dpkg_architecture
+
+        - name: Get the Ubuntu version name
+          shell: . /etc/os-release && echo "$VERSION_CODENAME"
+          register: ubuntu_version
+
+        - name: Add Docker repository
+          apt_repository:
+            repo: "deb [arch={{ dpkg_architecture.stdout }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ubuntu_version.stdout }} stable"
+            filename: docker
+
+        - name: Install Docker packages
+          apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-buildx-plugin
+            update_cache: yes  
+            state: present
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Add jenkins user to docker group
+      user:
+        name: jenkins
+        groups: docker
+        append: yes
+
+    - name: Restart Jenkins
+      systemd:
+        state: restarted
+        name: jenkins

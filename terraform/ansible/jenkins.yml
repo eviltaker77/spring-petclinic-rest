@@ -1,0 +1,69 @@
+---
+- hosts: localhost
+  become: true
+  remote_user: ubuntu
+  tasks:
+    - name: Update apt and install openjdk-17-jdk
+      apt:
+        name: openjdk-17-jdk
+        update_cache: yes
+        state: present
+
+    - name: Download Jenkins key
+      get_url:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+        dest: /usr/share/keyrings/jenkins-keyring.asc
+
+    - name: Add Jenkins repository
+      apt_repository:
+        repo: deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/
+        filename: jenkins
+
+    - name: Update apt and install Jenkins
+      apt:
+        name: jenkins
+        update_cache: yes
+        state: present
+
+    - name: Get the latest version of Jenkins plugin manager
+      uri:
+        url: https://api.github.com/repos/jenkinsci/plugin-installation-manager-tool/releases/latest
+        return_content: yes
+        headers:
+          Accept: "application/vnd.github.v3+json"
+      register: latest_release
+
+    - name: Download Jenkins plugin manager
+      get_url:
+        url: "https://github.com/jenkinsci/plugin-installation-manager-tool/releases/download/{{ latest_release.json.tag_name }}/jenkins-plugin-manager-{{ latest_release.json.tag_name }}.jar"
+        dest: "/tmp/jenkins-plugin-manager-{{ latest_release.json.tag_name }}.jar"
+
+    - name: Install Jenkins plugins
+      command:
+        cmd: sudo java -jar /tmp/jenkins-plugin-manager-{{ latest_release.json.tag_name }}.jar -f plugins.txt -d /var/lib/jenkins/plugins
+
+    - name: Update Jenkins service configuration
+      replace:
+        path: /lib/systemd/system/jenkins.service
+        regexp: 'Environment="JAVA_OPTS=-Djava.awt.headless=true"'
+        replace: 'Environment="JAVA_OPTS=-Djava.awt.headless=true -Djenkins.install.runSetupWizard=false -Dcasc.jenkins.config=/var/lib/jenkins/casc_configs"'
+
+    - name: Create Jenkins configuration directory
+      file:
+        path: /var/lib/jenkins/casc_configs
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: '0755'
+
+    - name: Move Jenkins configuration file
+      copy:
+        src: /home/ubuntu/jcasc.yaml
+        dest: /var/lib/jenkins/casc_configs/jenkins.yaml
+        owner: jenkins
+        group: jenkins
+        mode: '0644'
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes

@@ -1,0 +1,74 @@
+---
+- hosts: localhost
+  become: true
+  remote_user: ubuntu
+  tasks:
+    - name: Get the latest version of kubectl
+      ansible.builtin.uri:
+        url: https://dl.k8s.io/release/stable.txt
+        return_content: yes
+      register: kubectl_version
+
+    - name: Set kubectl download URL
+      ansible.builtin.set_fact:
+        kubectl_url: "https://dl.k8s.io/release/{{ kubectl_version.content }}/bin/linux/amd64/kubectl"
+
+    - name: Download the latest version of kubectl
+      ansible.builtin.get_url:
+        url: "{{ kubectl_url }}"
+        dest: /tmp/kubectl
+        mode: "0755"
+      register: kubectl_download
+
+    - name: Install kubectl
+      ansible.builtin.command:
+        cmd: install -o root -g root -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+      when: kubectl_download.changed
+
+    - name: Remove downloaded kubectl file
+      ansible.builtin.file:
+        path: /tmp/kubectl
+        state: absent
+      when: kubectl_download.changed
+
+    - name: Download the latest version of minikube
+      ansible.builtin.get_url:
+        url: https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        dest: /tmp/minikube-linux-amd64
+        mode: "0755"
+      register: minikube_download
+
+    - name: Install minikube
+      ansible.builtin.command:
+        cmd: install -o root -g root -m 0755 /tmp/minikube-linux-amd64 /usr/local/bin/minikube
+      when: minikube_download.changed
+
+    - name: Remove downloaded minikube file
+      ansible.builtin.file:
+        path: /tmp/minikube-linux-amd64
+        state: absent
+      when: minikube_download.changed
+
+    # - name: Add ubuntu user to docker group
+    #   user:
+    #     name: ubuntu
+    #     groups: docker
+    #     append: yes
+
+    # - name: Refresh SSH connection to apply group changes
+    #   ansible.builtin.meta: reset_connection
+
+    - name: Start Minikube cluster with docker driver as ubuntu user
+      become: false  # Deshabilitar become para esta tarea
+      shell: |
+        newgrp docker <<EONG
+        minikube start --driver=docker
+        minikube addons enable metrics-server
+        minikube addons enable dashboard        
+        EONG
+      register: minikube_start
+
+    - name: Display Minikube start result
+      ansible.builtin.debug:
+        msg: "{{ minikube_start.stdout }}"
+      when: minikube_start.changed

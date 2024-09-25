@@ -1,0 +1,7 @@
+services:
+
+  sonarqube:
+    image: sonarqube:9.9.6-community
+    ports:
+      - "9000:9000"
+    restart: unless-stopped
